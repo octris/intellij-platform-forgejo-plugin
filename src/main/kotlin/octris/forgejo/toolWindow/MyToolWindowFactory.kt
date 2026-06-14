@@ -1,4 +1,4 @@
-package com.github.nicba1010.intellijplatformforgejoplugin.toolWindow
+package octris.forgejo.toolWindow
 
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.thisLogger
@@ -8,8 +8,8 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.content.ContentFactory
-import com.github.nicba1010.intellijplatformforgejoplugin.MyBundle
-import com.github.nicba1010.intellijplatformforgejoplugin.services.MyProjectService
+import octris.forgejo.MyBundle
+import octris.forgejo.services.MyProjectService
 import javax.swing.JButton
 
 

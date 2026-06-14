@@ -1,4 +1,4 @@
-package com.github.nicba1010.intellijplatformforgejoplugin.startup
+package octris.forgejo.startup
 
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project

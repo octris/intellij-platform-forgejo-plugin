@@ -1,4 +1,4 @@
-package com.github.nicba1010.intellijplatformforgejoplugin
+package octris.forgejo
 
 import com.intellij.DynamicBundle
 import org.jetbrains.annotations.NonNls

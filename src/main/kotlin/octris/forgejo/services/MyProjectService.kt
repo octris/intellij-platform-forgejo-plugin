@@ -1,9 +1,9 @@
-package com.github.nicba1010.intellijplatformforgejoplugin.services
+package octris.forgejo.services
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
-import com.github.nicba1010.intellijplatformforgejoplugin.MyBundle
+import octris.forgejo.MyBundle
 
 @Service(Service.Level.PROJECT)
 class MyProjectService(project: Project) {

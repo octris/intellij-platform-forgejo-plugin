@@ -4,19 +4,63 @@
 [![Version](https://img.shields.io/jetbrains/plugin/v/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
 
-## Template ToDo list
+<!-- Plugin description -->
+**Forgejo Integration** brings [Forgejo](https://forgejo.org) into JetBrains IDEs, surfacing
+information from your Forgejo instance directly inside the IDE so you can stay in your editor
+instead of switching to the browser.
+
+Planned and in-progress capabilities:
+
+- Visualizing **Forgejo Actions** (CI) status and progress per commit in the VCS log.
+- Connecting to self-hosted Forgejo instances via personal access tokens.
+
+This plugin is under active development.
+<!-- Plugin description end -->
+
+## Development
+
+This project is built on the [IntelliJ Platform Plugin Template][template] and uses the
+[IntelliJ Platform Gradle Plugin][gradle-plugin]. JDK 21 is required.
+
+Common Gradle tasks (run via the wrapper, e.g. `./gradlew <task>`):
+
+| Task                | Description                                                        |
+|---------------------|--------------------------------------------------------------------|
+| `runIde`            | Launches a sandbox IDE with the plugin installed.                  |
+| `test`              | Runs the test suite.                                               |
+| `buildPlugin`       | Builds the distributable plugin ZIP into `build/distributions/`.   |
+| `verifyPlugin`      | Runs the IntelliJ Plugin Verifier against the configured IDEs.     |
+
+Run configurations for **Run Plugin**, **Run Tests**, and **Run Verifications** are also
+available in the IDE (see the `.run/` directory).
+
+### Project layout
+
+- Sources live under `src/main/kotlin/octris/forgejo/` (group / plugin id: `octris.forgejo`).
+- The plugin descriptor is `src/main/resources/META-INF/plugin.xml`.
+- Feature code:
+  - `settings/` — `ForgejoSettings` (server URL, persisted) and `ForgejoCredentials` (token in
+    the IDE password safe), exposed via **Settings | Tools | Forgejo Integration**.
+  - `api/` — `ForgejoApiClient` (REST client, currently a stub) and the `ForgejoCommitStatus` model.
+  - `vcs/` — `ForgejoActionsColumn` (the VCS-log "Forgejo CI" column) backed by
+    `ForgejoCommitStatusService`, which does non-blocking, cached status lookups off the EDT.
+- The classes under `services/`, `startup/`, and `toolWindow/` are the template's sample
+  scaffold, kept for now as reference. Remove them (and their `plugin.xml` registrations)
+  as the real features land.
+
+## Setup checklist
+
+Completed:
 - [x] Create a new [IntelliJ Platform Plugin Template][template] project.
-- [ ] Get familiar with the [template documentation][template].
-- [ ] Adjust the [group](./gradle.properties), as well as the [id](./src/main/resources/META-INF/plugin.xml), [name](./src/main/resources/META-INF/plugin.xml), and [sources package](./src/main/kotlin).
-- [ ] Adjust the plugin [description](./src/main/resources/META-INF/plugin.xml) (see [Tips][docs:plugin-description]) and this README to describe what your plugin does.
+- [x] Adjust the [group](./gradle.properties), as well as the [id](./src/main/resources/META-INF/plugin.xml), [name](./src/main/resources/META-INF/plugin.xml), and [sources package](./src/main/kotlin).
+- [x] Adjust the plugin [description](./src/main/resources/META-INF/plugin.xml) (see [Tips][docs:plugin-description]) and this README to describe what the plugin does.
+
+Still to do (require external accounts / repository secrets):
 - [ ] Review the [Legal Agreements](https://plugins.jetbrains.com/docs/marketplace/legal-agreements.html?from=IJPluginTemplate).
 - [ ] [Publish a plugin manually](https://plugins.jetbrains.com/docs/intellij/publishing-plugin.html?from=IJPluginTemplate) for the first time.
 - [ ] Set the `MARKETPLACE_ID` in the above README badges. You can obtain it once the plugin is published to JetBrains Marketplace.
 - [ ] Set the [Plugin Signing](https://plugins.jetbrains.com/docs/intellij/plugin-signing.html?from=IJPluginTemplate) related [secrets](https://github.com/JetBrains/intellij-platform-plugin-template#environment-variables).
 - [ ] Set the [Deployment Token](https://plugins.jetbrains.com/docs/marketplace/plugin-upload.html?from=IJPluginTemplate).
-- [ ] Click the <kbd>Watch</kbd> button on the top of the [IntelliJ Platform Plugin Template][template] to be notified about releases containing new features and fixes.
-
-This Fancy IntelliJ Platform Plugin is going to be your implementation of the brilliant ideas that you have.
 
 ## Installation
 
@@ -42,4 +86,5 @@ This Fancy IntelliJ Platform Plugin is going to be your implementation of the br
 Plugin based on the [IntelliJ Platform Plugin Template][template].
 
 [template]: https://github.com/JetBrains/intellij-platform-plugin-template
+[gradle-plugin]: https://github.com/JetBrains/intellij-platform-gradle-plugin
 [docs:plugin-description]: https://plugins.jetbrains.com/docs/intellij/plugin-user-experience.html#plugin-description-and-presentation

@@ -12,7 +12,7 @@ instead of switching to the browser.
 Planned and in-progress capabilities:
 
 - Visualizing **Forgejo Actions** (CI) status and progress per commit in the VCS log.
-- Connecting to self-hosted Forgejo instances via personal access tokens.
+- Managing multiple Forgejo accounts (server + token) with a per-project default.
 
 This plugin is under active development.
 <!-- Plugin description end -->
@@ -39,11 +39,18 @@ available in the IDE (see the `.run/` directory).
 - Sources live under `src/main/kotlin/octris/forgejo/` (group / plugin id: `octris.forgejo`).
 - The plugin descriptor is `src/main/resources/META-INF/plugin.xml`.
 - Feature code:
-  - `settings/` — `ForgejoSettings` (server URL, persisted) and `ForgejoCredentials` (token in
-    the IDE password safe), exposed via **Settings | Tools | Forgejo Integration**.
-  - `api/` — `ForgejoApiClient` (REST client, currently a stub) and the `ForgejoCommitStatus` model.
-  - `vcs/` — `ForgejoActionsColumn` (the VCS-log "Forgejo CI" column) backed by
-    `ForgejoCommitStatusService`, which does non-blocking, cached status lookups off the EDT.
+  - `settings/` — Forgejo **account management** on the platform collaboration auth framework
+    (`AccountManagerBase`, `PersistentDefaultAccountHolder`, `AccountsPanelFactory` — the same one
+    the GitHub/GitLab plugins use). Accounts persist via `ForgejoAccountsRepository` (non-secret)
+    and the IDE password safe (tokens); the panel is at **Settings | Version Control | Forgejo
+    Integration**.
+  - `api/` — `ForgejoApiClient` (REST client: token validation / user resolution + commit status)
+    and the `ForgejoCommitState` model.
+  - `vcs/` — the "Forgejo CI" VCS-log column, built on the platform's external-status framework
+    (`VcsCommitExternalStatusProvider`, the same one the bundled GitHub plugin uses) so it renders
+    natively. `ForgejoCommitStatusProvider` + `ForgejoCommitStatusColumnService` +
+    `ForgejoCommitStatusLoader` + `ForgejoCommitStatusPresentation`, with `ForgejoRepoResolver`
+    mapping a Git remote to a Forgejo owner/repo.
 - The classes under `services/`, `startup/`, and `toolWindow/` are the template's sample
   scaffold, kept for now as reference. Remove them (and their `plugin.xml` registrations)
   as the real features land.

@@ -1,44 +1,47 @@
 package octris.forgejo.settings
 
+import com.intellij.collaboration.auth.ui.AccountsPanelFactory
+import com.intellij.openapi.components.service
 import com.intellij.openapi.options.BoundConfigurable
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
-import com.intellij.ui.dsl.builder.bindText
-import com.intellij.ui.dsl.builder.columns
+import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.panel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import octris.forgejo.ForgejoBundle
 
 /**
- * Settings page under <kbd>Settings | Tools | Forgejo Integration</kbd> for configuring
- * the Forgejo server URL and personal access token.
+ * Settings page under **Version Control | Forgejo Integration** that manages Forgejo accounts
+ * (add/remove/set default) using the collaboration auth framework's [AccountsPanelFactory] — the
+ * same panel the GitHub/GitLab plugins use.
  */
-class ForgejoSettingsConfigurable : BoundConfigurable(ForgejoBundle.message("settings.displayName")) {
+class ForgejoSettingsConfigurable(private val project: Project) :
+    BoundConfigurable(ForgejoBundle.message("settings.displayName")) {
 
-    // Backing value for the password field; loaded from / flushed to the password safe
-    // in reset()/apply() so the secret is never bound directly to the UI lifecycle.
-    private var token: String = ""
+    private var uiScope: CoroutineScope? = null
 
-    override fun createPanel(): DialogPanel = panel {
-        row(ForgejoBundle.message("settings.server.label")) {
-            textField()
-                .bindText(ForgejoSettings.instance::server)
-                .columns(36)
-                .comment(ForgejoBundle.message("settings.server.comment"))
-        }
-        row(ForgejoBundle.message("settings.token.label")) {
-            passwordField()
-                .bindText(::token)
-                .columns(36)
-                .comment(ForgejoBundle.message("settings.token.comment"))
+    override fun createPanel(): DialogPanel {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main).also { uiScope = it }
+        val accountManager = service<ForgejoAccountManager>()
+        val defaultAccountHolder = project.service<ForgejoDefaultAccountHolder>()
+        val accountsModel = ForgejoAccountsListModel()
+        val detailsProvider = ForgejoAccountsDetailsProvider(scope, accountsModel)
+        val actionsController = ForgejoAccountsPanelActionsController(project, accountsModel)
+        val panelFactory = AccountsPanelFactory(scope, accountManager, defaultAccountHolder, accountsModel)
+
+        return panel {
+            row {
+                panelFactory.accountsPanelCell(this, detailsProvider, actionsController).align(Align.FILL)
+            }.resizableRow()
         }
     }
 
-    override fun reset() {
-        token = ForgejoCredentials.getToken().orEmpty()
-        super.reset()
-    }
-
-    override fun apply() {
-        super.apply()
-        ForgejoCredentials.setToken(token)
+    override fun disposeUIResources() {
+        uiScope?.cancel()
+        uiScope = null
+        super.disposeUIResources()
     }
 }

@@ -16,6 +16,8 @@
     <depends>com.intellij.modules.platform</depends>
     <!-- Required for the VCS log custom-column extension point. -->
     <depends>com.intellij.modules.vcs</depends>
+    <!-- Required for resolving Git remotes to Forgejo owner/repo. -->
+    <depends>Git4Idea</depends>
 
     <resource-bundle>messages.MyBundle</resource-bundle>
 
@@ -23,12 +25,12 @@
         <toolWindow factoryClass="octris.forgejo.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
         <postStartupActivity implementation="octris.forgejo.startup.MyProjectActivity" />
 
-        <!-- Forgejo Integration -->
-        <applicationConfigurable
-                parentId="tools"
+        <!-- Forgejo Integration: accounts settings under Version Control -->
+        <projectConfigurable
+                parentId="project.propVCSSupport.Mappings"
                 id="octris.forgejo.settings"
                 displayName="Forgejo Integration"
                 instance="octris.forgejo.settings.ForgejoSettingsConfigurable"/>
-        <vcsLogCustomColumn implementation="octris.forgejo.vcs.ForgejoActionsColumn"/>
+        <vcsLogCommitStatusProvider implementation="octris.forgejo.vcs.ForgejoCommitStatusProvider"/>
     </extensions>
 </idea-plugin>

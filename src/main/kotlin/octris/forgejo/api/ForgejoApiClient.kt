@@ -50,39 +50,39 @@ class ForgejoApiClient {
     }
 
     /**
-     * Lists recent workflow runs (with their jobs) for the repo, newest first.
-     *
-     * Derived from the lightweight `/actions/tasks` endpoint — the `/actions/runs` payload is far
-     * heavier (full event payload + repository per run). Tasks are grouped by run number into a run
-     * whose status is aggregated from its jobs.
+     * Fetches one page of the repo's workflow runs from `/actions/runs`, newest first, plus the
+     * server's total run count. This is the run list the CI tab paginates by scroll: each run object
+     * carries run-level status/branch/title/commit/timing directly, so no per-task aggregation is
+     * needed. (Forgejo has no per-run jobs endpoint, so a run's jobs are loaded lazily on expand from
+     * the bulk [listTasksPage] feed.)
      */
-    fun listRuns(server: String, token: String, owner: String, repo: String, limit: Int = 50): Result<List<ForgejoRun>> = runCatching {
-        val dto = gson.fromJson(get(server, token, "repos/$owner/$repo/actions/tasks?limit=$limit"), TasksDto::class.java)
-        dto?.workflowRuns.orEmpty()
-            .groupBy { it.runNumber }
-            .map { (runNumber, tasks) -> buildRun(runNumber, tasks) }
-            .sortedByDescending { it.index }
+    fun listRunsPage(
+        server: String,
+        token: String,
+        owner: String,
+        repo: String,
+        page: Int,
+        limit: Int,
+    ): Result<ForgejoRunsPage> = runCatching {
+        val dto = gson.fromJson(get(server, token, "repos/$owner/$repo/actions/runs?limit=$limit&page=$page"), RunsDto::class.java)
+        ForgejoRunsPage(dto?.workflowRuns.orEmpty().map { it.toRun() }, dto?.totalCount ?: 0)
     }
 
-    private fun buildRun(runNumber: Long, tasks: List<TaskDto>): ForgejoRun {
-        val first = tasks.first()
-        val jobs = tasks.map { it.toJob() }
-        val statuses = jobs.map { it.status }
-        val started = tasks.mapNotNull { parseMillis(it.runStartedAt ?: it.createdAt) }.minOrNull() ?: 0L
-        val end = tasks.mapNotNull { parseMillis(it.updatedAt) }.maxOrNull() ?: 0L
-        val running = statuses.any { it.isInProgress }
-        return ForgejoRun(
-            index = runNumber,
-            workflow = first.workflowId.orEmpty(),
-            branch = first.headBranch.orEmpty(),
-            title = first.displayTitle.orEmpty(),
-            commitSha = first.headSha.orEmpty(),
-            status = aggregateStatus(statuses),
-            htmlUrl = first.url.orEmpty(),
-            startedAtMillis = started,
-            durationMillis = if (running || started == 0L || end <= started) 0 else end - started,
-            jobs = jobs,
-        )
+    /**
+     * Fetches one page of the repo's Actions tasks (jobs) from `/actions/tasks`, newest first, plus
+     * the server's total task count. Used to lazily resolve a run's jobs: the feed isn't filterable by
+     * run, so callers page it (newest-first) and pick out the tasks whose `run_number` matches.
+     */
+    fun listTasksPage(
+        server: String,
+        token: String,
+        owner: String,
+        repo: String,
+        page: Int,
+        limit: Int,
+    ): Result<ForgejoTasksPage> = runCatching {
+        val dto = gson.fromJson(get(server, token, "repos/$owner/$repo/actions/tasks?limit=$limit&page=$page"), TasksDto::class.java)
+        ForgejoTasksPage(dto?.workflowRuns.orEmpty().map { it.toRaw() }, dto?.totalCount ?: 0)
     }
 
     /** Resolves a possibly-relative Forgejo URL (e.g. status `target_url`) against the server. */
@@ -122,7 +122,10 @@ class ForgejoApiClient {
 
     private data class CommitStatusDto(@SerializedName("target_url") val targetUrl: String? = null)
 
-    private data class TasksDto(@SerializedName("workflow_runs") val workflowRuns: List<TaskDto>? = null)
+    private data class TasksDto(
+        @SerializedName("total_count") val totalCount: Int = 0,
+        @SerializedName("workflow_runs") val workflowRuns: List<TaskDto>? = null,
+    )
 
     private data class TaskDto(
         val id: Long = 0,
@@ -138,17 +141,59 @@ class ForgejoApiClient {
         @SerializedName("updated_at") val updatedAt: String? = null,
         @SerializedName("run_started_at") val runStartedAt: String? = null,
     ) {
-        fun toJob(): ForgejoTask {
-            val jobStatus = ForgejoActionStatus.fromString(status)
-            val started = parseMillis(createdAt) ?: 0L
-            val end = parseMillis(updatedAt) ?: 0L
-            return ForgejoTask(
-                id = id,
-                name = name.orEmpty(),
-                status = jobStatus,
-                runUrl = url.orEmpty(),
-                startedAtMillis = started,
-                durationMillis = if (jobStatus.isInProgress || started == 0L || end <= started) 0 else end - started,
+        fun toRaw(): ForgejoTaskRaw = ForgejoTaskRaw(
+            id = id,
+            name = name,
+            status = status,
+            runNumber = runNumber,
+            url = url,
+            workflowId = workflowId,
+            headBranch = headBranch,
+            headSha = headSha,
+            displayTitle = displayTitle,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            runStartedAt = runStartedAt,
+        )
+    }
+
+    private data class RunsDto(
+        @SerializedName("total_count") val totalCount: Int = 0,
+        @SerializedName("workflow_runs") val workflowRuns: List<RunDto>? = null,
+    )
+
+    private data class RunDto(
+        @SerializedName("index_in_repo") val indexInRepo: Long = 0,
+        val status: String? = null,
+        val prettyref: String? = null,
+        @SerializedName("commit_sha") val commitSha: String? = null,
+        val title: String? = null,
+        @SerializedName("workflow_id") val workflowId: String? = null,
+        @SerializedName("html_url") val htmlUrl: String? = null,
+        val started: String? = null,
+        val stopped: String? = null,
+        val duration: Long = 0, // nanoseconds
+    ) {
+        fun toRun(): ForgejoRun {
+            val runStatus = ForgejoActionStatus.fromString(status)
+            val startedMs = parseMillis(started) ?: 0L
+            val stoppedMs = parseMillis(stopped) ?: 0L
+            val durationMs = when {
+                duration > 0 -> duration / 1_000_000
+                startedMs > 0 && stoppedMs > startedMs -> stoppedMs - startedMs
+                else -> 0L
+            }
+            return ForgejoRun(
+                index = indexInRepo,
+                workflow = workflowId.orEmpty(),
+                branch = prettyref.orEmpty(),
+                title = title.orEmpty(),
+                commitSha = commitSha.orEmpty(),
+                status = runStatus,
+                htmlUrl = htmlUrl.orEmpty(),
+                startedAtMillis = startedMs,
+                durationMillis = if (runStatus.isInProgress) 0 else durationMs,
+                jobs = emptyList(), // jobs are loaded lazily on expand
             )
         }
     }
@@ -158,15 +203,19 @@ class ForgejoApiClient {
     }
 }
 
-private fun aggregateStatus(statuses: List<ForgejoActionStatus>): ForgejoActionStatus = when {
-    statuses.isEmpty() -> ForgejoActionStatus.UNKNOWN
-    statuses.any { it == ForgejoActionStatus.FAILURE } -> ForgejoActionStatus.FAILURE
-    statuses.any { it == ForgejoActionStatus.RUNNING } -> ForgejoActionStatus.RUNNING
-    statuses.any { it == ForgejoActionStatus.WAITING || it == ForgejoActionStatus.BLOCKED } -> ForgejoActionStatus.WAITING
-    statuses.any { it == ForgejoActionStatus.CANCELLED } -> ForgejoActionStatus.CANCELLED
-    statuses.all { it == ForgejoActionStatus.SKIPPED } -> ForgejoActionStatus.SKIPPED
-    statuses.all { it == ForgejoActionStatus.SUCCESS || it == ForgejoActionStatus.SKIPPED } -> ForgejoActionStatus.SUCCESS
-    else -> ForgejoActionStatus.UNKNOWN
+/** Maps a raw Actions task to a job (a run's child row in the CI tab). */
+fun ForgejoTaskRaw.toJob(): ForgejoTask {
+    val jobStatus = ForgejoActionStatus.fromString(status)
+    val started = parseMillis(createdAt) ?: 0L
+    val end = parseMillis(updatedAt) ?: 0L
+    return ForgejoTask(
+        id = id,
+        name = name.orEmpty(),
+        status = jobStatus,
+        runUrl = url.orEmpty(),
+        startedAtMillis = started,
+        durationMillis = if (jobStatus.isInProgress || started == 0L || end <= started) 0 else end - started,
+    )
 }
 
 private fun parseMillis(text: String?): Long? =
@@ -177,3 +226,9 @@ data class ForgejoUser(val login: String, val avatarUrl: String?)
 
 /** Combined commit status: the overall state plus a link to the run/job page (if any). */
 data class ForgejoCommitStatusInfo(val state: ForgejoCommitState, val url: String?)
+
+/** One page of workflow runs plus the server's reported total run count (drives run-list paging). */
+data class ForgejoRunsPage(val runs: List<ForgejoRun>, val totalCount: Int)
+
+/** One page of raw Actions tasks plus the server's reported total task count. */
+data class ForgejoTasksPage(val tasks: List<ForgejoTaskRaw>, val totalCount: Int)

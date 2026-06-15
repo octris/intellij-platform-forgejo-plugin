@@ -70,7 +70,7 @@ class ForgejoCommitStatusLoader(private val project: Project) : VcsCommitsDataLo
             val token = tokens[context.account] ?: continue
             val info = client.getCommitStatus(context.account.server.toString(), token, context.owner, context.repo, sha)
                 ?: continue
-            return ForgejoCommitStatus.Loaded(info.state, info.url)
+            return ForgejoCommitStatus.Loaded(info.state, info.url, sha, context)
         }
         return null
     }

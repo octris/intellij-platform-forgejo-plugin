@@ -38,7 +38,7 @@ class ForgejoCommitStatusProvider : VcsCommitExternalStatusProvider.WithColumn<F
 
     override fun getPresentation(project: Project, status: ForgejoCommitStatus): VcsCommitExternalStatusPresentation =
         when (status) {
-            is ForgejoCommitStatus.Loaded -> ForgejoCommitStatusPresentation(status.state)
+            is ForgejoCommitStatus.Loaded -> ForgejoCommitStatusPresentation(status.state, status.url)
             ForgejoCommitStatus.NotLoaded -> EMPTY_PRESENTATION
         }
 

@@ -64,7 +64,16 @@ Do NOT reintroduce a hand-rolled `VcsLogCustomColumn` + custom cache/repaint —
 
 ### Gotcha: bundled modules/plugins on the compile classpath
 
-The external-status framework (`VcsCommitExternalStatusProvider`, `VcsLogExternalStatusColumnService`, `GraphTableModel`, …) lives in `intellij.platform.vcs.log.impl`, the CI icons in `intellij.platform.collaborationTools`, and Git-remote resolution needs Git4Idea — none are on the compile classpath by default. `build.gradle.kts` adds `bundledModule("intellij.platform.vcs.log.impl")`, `bundledModule("intellij.platform.collaborationTools")`, and `bundledPlugin("Git4Idea")`; `plugin.xml` `<depends>` on `com.intellij.modules.vcs` and `Git4Idea`.
+The external-status framework (`VcsCommitExternalStatusProvider`, `VcsLogExternalStatusColumnService`, `GraphTableModel`, …) lives in `intellij.platform.vcs.log.impl`, the CI icons in `intellij.platform.collaborationTools`, and Git-remote resolution needs Git4Idea — none are on the compile classpath by default. `build.gradle.kts` adds `bundledModule("intellij.platform.vcs.log.impl")`, `bundledModule("intellij.platform.collaborationTools")`, and `bundledPlugin("Git4Idea")`; `plugin.xml` `<depends>` on `com.intellij.modules.vcs` and `Git4Idea`. (The collaboration **auth** classes are in `collaborationTools.jar` — no separate auth bundled-module needed.)
+
+### CI tool window + multi-remote (`actions/` package)
+
+The **"Forgejo CI" tool window** (`ForgejoActionsToolWindowFactory` + `ForgejoActionsPanel`) is a runs→jobs tree with a repo selector, auto-refresh + live-ticking elapsed time while runs are in progress. `ForgejoRepoResolver.allContexts`/`contextsFor` resolve **all** matching Forgejo remotes (default account first); the VCS-log column tries each and shows whichever has a status.
+
+Gotchas:
+- `AnimatedIcon` does NOT animate in the VCS-log column (the log table doesn't repaint continuously) — use a static icon there (`CIBuildStatusIcons.inProgress`). Animated spinners only work where you drive repaint, e.g. the tool-window tree + a repaint `Alarm`.
+- `TreeState` is `com.intellij.ide.util.treeView.TreeState` (NOT `com.intellij.ui.tree`). To preserve expansion across model rebuilds, tree nodes need a **stable `toString()`** (id-based) — if it includes changing text (duration), matching breaks and the tree collapses on every refresh.
+- `VcsCommitExternalStatusPresentation.Clickable.onClick(e: InputEvent?)` takes a **nullable** `InputEvent`.
 
 ### Template scaffold (to be removed)
 
@@ -75,9 +84,13 @@ The external-status framework (`VcsCommitExternalStatusProvider`, `VcsLogExterna
 REST API reference (Swagger): **https://git.octr.is/api/swagger**
 
 Combined commit status (what the VCS column needs):
-`GET {server}/api/v1/repos/{owner}/{repo}/commits/{sha}/status` with header `Authorization: token <personal-access-token>`. The `state` field (`success` | `failure` | `pending` | `error`) maps via `ForgejoCommitState.fromState()`. Per-workflow run progress is under `/repos/{owner}/{repo}/actions/...`.
+`GET {server}/api/v1/repos/{owner}/{repo}/commits/{sha}/status` with header `Authorization: token <personal-access-token>`. The `state` field (`success` | `failure` | `pending` | `error`) maps via `ForgejoCommitState.fromState()`. The status `target_url` is relative — resolve against the server.
+
+**Actions API (verified on the instance):** `/actions/runs` (list/get) is heavy — each run embeds the full event payload + repository — so for run lists fetch the lighter **`/actions/tasks`** (job-level) and group by `run_number`, aggregating status (`ForgejoApiClient.listRuns` does this). No steps/logs/artifacts/rerun/cancel API yet (logs API expected ~mid-2026); only `workflows/{file}/dispatches` (trigger) is writable. Both list responses are wrapped as `{ total_count, workflow_runs[] }`.
 
 ## Git remotes & CI
+
+**Never `git add -A` blindly** — review the staged file list before committing (a stray `.env`/secret can slip in). `.env*` is gitignored.
 
 Two remotes: `origin` → GitHub (`github.com:octris/...`, lowercase) and `forgejo` → `ssh://git@git.octr.is:42042/Octris/...` (note the capital `Octris`). Use `fj` (Forgejo CLI, `--host git.octr.is`) for Forgejo PRs/issues/releases; standard `gh`/git for GitHub.
 

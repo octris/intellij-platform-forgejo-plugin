@@ -11,6 +11,6 @@ sealed interface ForgejoCommitStatus : VcsCommitExternalStatus {
     /** Not fetched yet (the stub value shown while loading). */
     object NotLoaded : ForgejoCommitStatus
 
-    /** A resolved Forgejo CI state for the commit. */
-    data class Loaded(val state: ForgejoCommitState) : ForgejoCommitStatus
+    /** A resolved Forgejo CI state for the commit, with a link to the run/job page (if any). */
+    data class Loaded(val state: ForgejoCommitState, val url: String?) : ForgejoCommitStatus
 }

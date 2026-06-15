@@ -32,5 +32,7 @@
                 displayName="Forgejo Integration"
                 instance="octris.forgejo.settings.ForgejoSettingsConfigurable"/>
         <vcsLogCommitStatusProvider implementation="octris.forgejo.vcs.ForgejoCommitStatusProvider"/>
+        <toolWindow id="Forgejo CI" anchor="bottom" canCloseContents="false"
+                    factoryClass="octris.forgejo.actions.ForgejoActionsToolWindowFactory"/>
     </extensions>
 </idea-plugin>
